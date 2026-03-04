@@ -1,0 +1,273 @@
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 1
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+C o m p i l a t i o n
+
+
+   1  * ================================
+   2  *   PROBLEMA TRANSPORTE
+   3  * ================================
+   4   
+   5  * ---------- Conjuntos ----------
+   6  SETS
+   7      i "Almacenes" /A1, A2, A3/
+   8      j "Clientes"  /C1, C2/;
+   9   
+  10  * ---------- Parámetros ----------
+  11  PARAMETERS
+  12      ci(i)     "Capacidad del almacén i"
+  13      dj(j)     "Demanda del cliente j"
+  14      bij(i,j)  "Coste de transporte de una unidad desde i a j";
+  15   
+  16  * ---------- Tabla de costos de transporte ----------
+  17  TABLE bij(i,j) "Coste de transporte de una unidad desde i a j"
+  18           C1    C2
+  19      A1   1.5   2
+  20      A2   2     1.5
+  21      A3   2.5   2.25;
+  22   
+  23  * ---------- Tablas de datos automáticas ----------
+  24  TABLE data(i,*) "Capacidades de almacenes"
+  25           valor
+  26      A1    4000
+  27      A2    5000
+  28      A3    6000;
+  29   
+  30  TABLE demand(j,*) "Demandas de los clientes"
+  31           valor
+  32      C1    3000
+  33      C2    5000;
+  34   
+  35  * ---------- Asignación automática ----------
+  36  ci(i) = data(i,"valor");
+  37  dj(j) = demand(j,"valor");
+  38   
+  39  * ---------- Variables ----------
+  40  VARIABLES
+  41      Yij(i,j) "Cantidad enviada desde el almacén i al cliente j"
+  42      z        "Costo total de transporte";
+  43   
+  44  POSITIVE VARIABLES Yij;
+  45   
+  46  * ---------- Ecuaciones ----------
+  47  EQUATIONS
+  48      funObj       "Función objetivo: minimizar costo total"
+  49      capConstr(i) "Restricción de capacidad de cada almacén"
+  50      demConstr(j) "Restricción de satisfacción de demanda de cada cliente";
+  51   
+  52  * ---------- Función objetivo ----------
+  53  funObj..
+  54      z =E= SUM((i,j), bij(i,j) * Yij(i,j));
+  55   
+  56  * ---------- Restricciones ----------
+  57  capConstr(i)..
+  58      SUM(j, Yij(i,j)) =L= ci(i);
+  59   
+  60  demConstr(j)..
+  61      SUM(i, Yij(i,j)) =G= dj(j);
+  62   
+  63  * ---------- Modelo ----------
+  64  MODEL Transporte /all/;
+  65   
+  66  * ---------- Resolver ----------
+  67  SOLVE Transporte USING LP MINIMIZING z;
+  68   
+  69  * ---------- Mostrar resultados ----------
+  70  DISPLAY Yij.l, z.l, capConstr.m, demConstr.m;
+
+
+COMPILATION TIME     =        0.016 SECONDS      3 MB  51.2.1 5fb43f63 WEX-WEI
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 2
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Equation Listing    SOLVE Transporte Using LP From line 67
+
+
+---- funObj  =E=  Función objetivo: minimizar costo total
+
+funObj..  - 1.5*Yij(A1,C1) - 2*Yij(A1,C2) - 2*Yij(A2,C1) - 1.5*Yij(A2,C2) - 2.5*Yij(A3,C1) - 2.25*Yij(A3,C2) + z =E= 0 ; (LHS = 0)
+     
+
+---- capConstr  =L=  Restricción de capacidad de cada almacén
+
+capConstr(A1)..  Yij(A1,C1) + Yij(A1,C2) =L= 4000 ; (LHS = 0)
+     
+capConstr(A2)..  Yij(A2,C1) + Yij(A2,C2) =L= 5000 ; (LHS = 0)
+     
+capConstr(A3)..  Yij(A3,C1) + Yij(A3,C2) =L= 6000 ; (LHS = 0)
+     
+
+---- demConstr  =G=  Restricción de satisfacción de demanda de cada cliente
+
+demConstr(C1)..  Yij(A1,C1) + Yij(A2,C1) + Yij(A3,C1) =G= 3000 ; (LHS = 0, INFES = 3000 ****)
+     
+demConstr(C2)..  Yij(A1,C2) + Yij(A2,C2) + Yij(A3,C2) =G= 5000 ; (LHS = 0, INFES = 5000 ****)
+     
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 3
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Column Listing      SOLVE Transporte Using LP From line 67
+
+
+---- Yij  Cantidad enviada desde el almacén i al cliente j
+
+Yij(A1,C1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1.5     funObj
+        1       capConstr(A1)
+        1       demConstr(C1)
+
+Yij(A1,C2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -2       funObj
+        1       capConstr(A1)
+        1       demConstr(C2)
+
+Yij(A2,C1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -2       funObj
+        1       capConstr(A2)
+        1       demConstr(C1)
+
+REMAINING 3 ENTRIES SKIPPED
+
+---- z  Costo total de transporte
+
+z
+                (.LO, .L, .UP, .M = -INF, 0, +INF, 0)
+        1       funObj
+
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 4
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Range Statistics    SOLVE Transporte Using LP From line 67
+
+
+RANGE STATISTICS (ABSOLUTE NON-ZERO FINITE VALUES)
+
+RHS       [min, max] : [ 3.000E+03, 6.000E+03] - Zero values observed as well
+Bound     [min, max] : [        NA,        NA] - Zero values observed as well
+Matrix    [min, max] : [ 1.000E+00, 2.500E+00]
+
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 5
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Model Statistics    SOLVE Transporte Using LP From line 67
+
+
+MODEL STATISTICS
+
+BLOCKS OF EQUATIONS           3     SINGLE EQUATIONS            6
+BLOCKS OF VARIABLES           2     SINGLE VARIABLES            7
+NON ZERO ELEMENTS            19
+
+
+GENERATION TIME      =        0.093 SECONDS      4 MB  51.2.1 5fb43f63 WEX-WEI
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 6
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Solution Report     SOLVE Transporte Using LP From line 67
+
+
+               S O L V E      S U M M A R Y
+
+     MODEL   Transporte          OBJECTIVE  z
+     TYPE    LP                  DIRECTION  MINIMIZE
+     SOLVER  CPLEX               FROM LINE  67
+
+**** SOLVER STATUS     1 Normal Completion
+**** MODEL STATUS      1 Optimal
+**** OBJECTIVE VALUE            12000.0000
+
+ RESOURCE USAGE, LIMIT          0.000 10000000000.000
+ ITERATION COUNT, LIMIT         2    2147483647
+--- GAMS/CPLEX Link licensed for continuous and discrete problems.
+--- GMO setup time: 0.00s
+--- GMO memory 0.50 Mb (peak 0.50 Mb)
+--- Dictionary memory 0.00 Mb
+--- Cplex 22.1.2.0 link memory 0.00 Mb (peak 0.00 Mb)
+--- Starting Cplex
+
+
+--- LP status (1): optimal.
+--- Cplex Time: 0.00sec (det. 0.01 ticks)
+
+
+Optimal solution found
+Objective:        12000.000000
+
+
+                           LOWER          LEVEL          UPPER         MARGINAL
+
+---- EQU funObj              .              .              .             1.0000      
+
+  funObj  Función objetivo: minimizar costo total
+
+---- EQU capConstr  Restricción de capacidad de cada almacén
+
+          LOWER          LEVEL          UPPER         MARGINAL
+
+A1        -INF         3000.0000      4000.0000          .          
+A2        -INF         5000.0000      5000.0000          .          
+A3        -INF             .          6000.0000          .          
+
+---- EQU demConstr  Restricción de satisfacción de demanda de cada cliente
+
+          LOWER          LEVEL          UPPER         MARGINAL
+
+C1      3000.0000      3000.0000        +INF            1.5000      
+C2      5000.0000      5000.0000        +INF            1.5000      
+
+---- VAR Yij  Cantidad enviada desde el almacén i al cliente j
+
+             LOWER          LEVEL          UPPER         MARGINAL
+
+A1.C1          .          3000.0000        +INF             .          
+A1.C2          .              .            +INF            0.5000      
+A2.C1          .              .            +INF            0.5000      
+A2.C2          .          5000.0000        +INF             .          
+A3.C1          .              .            +INF            1.0000      
+A3.C2          .              .            +INF            0.7500      
+
+                           LOWER          LEVEL          UPPER         MARGINAL
+
+---- VAR z                 -INF        12000.0000        +INF             .          
+
+  z  Costo total de transporte
+
+
+**** REPORT SUMMARY :        0     NONOPT
+                             0 INFEASIBLE
+                             0  UNBOUNDED
+GAMS 51.2.1  5fb43f63 Oct 13, 2025          WEX-WEI x86 64bit/MS Windows - 10/29/25 16:42:21 Page 7
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+E x e c u t i o n
+
+
+----     70 VARIABLE Yij.L  Cantidad enviada desde el almacén i al cliente j
+
+            C1          C2
+
+A1    3000.000
+A2                5000.000
+
+
+----     70 VARIABLE z.L                   =    12000.000  Costo total de transporte
+
+----     70 EQUATION capConstr.M  Restricción de capacidad de cada almacén
+
+                      ( ALL       0.000 )
+
+
+----     70 EQUATION demConstr.M  Restricción de satisfacción de demanda de cada cliente
+
+C1 1.500,    C2 1.500
+
+
+
+EXECUTION TIME       =        0.359 SECONDS      4 MB  51.2.1 5fb43f63 WEX-WEI
+
+
+USER: Course License                                 G251004+0003Ac-GEN
+      Universidad Complutense de Madrid                         DCE4829
+      License for teaching and research at degree granting institutions
+
+
+**** FILE SUMMARY
+
+Input      C:\Users\usu319\Downloads\Transporte.gms
+Output     C:\Users\usu319\Documents\Transporte.lst
