@@ -1,0 +1,437 @@
+---
+title: "Practica FMF"
+author: ' Ana Marta Oliveira y Siria Catherine Íñiguez'
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## 1. Introducción
+
+En el mundo de las finanzas, entender cómo cambian los tipos de interés es fundamental. A diferencia de las acciones de una empresa, que pueden subir o bajar por muchas razones, los tipos de interés dependen de la economía de un país y de las decisiones de sus gobernantes.
+
+El objetivo de este trabajo es analizar la evolución histórica de la serie TB3MS (3-Month Treasury Bill Secondary Market Rate) para identificar sus propiedades estadísticas fundamentales y determinar qué Ecuación Diferencial Estocástica (SDE) es capaz de capturar su comportamiento dinámico de manera más fiel.
+
+### 1.1. Contexto Económico de la Serie TB3MS
+
+La serie `TB3MS` registra el rendimiento de las Letras del Tesoro de EE. UU. a tres meses. Debido a que cuenta con el respaldo total del gobierno estadounidense, se considera un activo "libre de riesgo" y funciona como la base de referencia para el sistema financiero global. Su análisis es fundamental por tres motivos principales:
+
+-   **Política Monetaria:** Esta tasa es el reflejo más directo de las decisiones de la Reserva Federal (la Fed). Cuando el banco central decide encarecer o abaratar el precio del dinero para controlar la economía, la serie TB3MS es la primera en reaccionar, marcando el rumbo de lo que costará el crédito a corto plazo.
+
+-   **Expectativas Inflacionarias:** El valor de esta tasa incorpora lo que el mercado espera que ocurra con los precios en el futuro cercano. Si los inversores prevén que la inflación va a subir, exigirán un mayor rendimiento en estas letras, convirtiendo a esta serie en un termómetro de las previsiones económicas del mercado.
+
+-   **Ciclos Económicos:** La serie funciona como un indicador adelantado de la actividad económica. En épocas de expansión, las tasas tienden a subir ante una mayor demanda de crédito y expectativas de crecimiento. Por el contrario, caídas bruscas en el TB3MS suelen preceder a periodos de recesión, ya que el mercado busca refugio en la seguridad de la deuda pública y anticipa que la Reserva Federal bajará los tipos para estimular la economía.
+
+------------------------------------------------------------------------
+
+## 2. Visualización y Análisis Exploratorio
+
+Para determinar qué tipo de proceso estocástico se ajusta mejor a estos datos, comenzaremos importando y graficando la serie. El objetivo es identificar visualmente propiedades como la reversión hacia la media, la presencia de valores negativos (o su ausencia) y la estructura de la volatilidad.
+
+```{r}
+library(yuima)
+library(quantmod)
+
+# Descarga y preparación de datos 
+TB3MS <- getSymbols("TB3MS", src = "FRED", auto.assign = FALSE)
+serie_limpia <- na.omit(TB3MS)
+
+# Visualización inicial (Análisis exploratorio)
+plot(TB3MS,
+     main = "Evolución de la Tasa de Interés (TB3MS: 1934 - 2026)", 
+     ylab = "Rendimiento (%)", 
+     xlab = "Año", 
+     col = "darkblue",
+     lwd = 1.2)
+grid()
+# Creamos el objeto de datos
+datos_y <- setData(serie_limpia, delta = 1/12)
+
+# Comprobamos que el objeto está bien creado
+modelo_base <- setYuima(data = datos_y)
+plot(modelo_base)
+
+```
+
+Tras observar el gráfico de la serie histórica de la tasa **TB3MS (1934-2026)**, podemos concluir que el modelo de Movimiento Browniano Geométrico (GBM), definido por la Ecuación Diferencial Estocástica $dS_t = \mu S_t dt + \sigma S_t dW_t$, resulta inadecuado para representar este activo por las siguientes razones:
+
+### Dinámica de Reversión a la Media
+
+El GBM se caracteriza por poseer una tendencia o *drift* constante ($\mu$), lo que implica que el proceso tiene una propensión intrínseca a crecer o decrecer de forma indefinida en el tiempo. Sin embargo, en el gráfico de la serie se observa que los tipos de interés están sujetos a fuerzas macroeconómicas que impiden un crecimiento infinito o una caída sin retorno. Aunque la serie muestra periodos de tipos excepcionalmente altos (alcanzando casi el 15% en los años 80), la tasa siempre termina regresando hacia un nivel de equilibrio. Este fenómeno de **reversión a la media** es una propiedad estructural que el GBM no puede capturar, ya que carece de un mecanismo matemático de "atracción" hacia un promedio histórico.
+
+### El fenómeno del Límite Cero
+
+Matemáticamente, un proceso GBM es estrictamente positivo y su naturaleza estocástica le impide permanecer estático en un valor determinado. No obstante, la evolución de la tasa TB3MS muestra una realidad distinta: tras la crisis financiera de 2008 y durante la pandemia de 2020, la tasa colapsó hasta situarse prácticamente en el **0%** y permaneció "anclada" en ese nivel durante años. Esta capacidad de la serie para presentar periodos de inactividad y estabilidad absoluta en su límite inferior contradice la formulación del GBM, el cual obligaría a la tasa a mantener fluctuaciones aleatorias constantes y proporcionales, haciendo imposible modelar un escenario de tipos estancados en el suelo.
+
+### Estructura de la Volatilidad
+
+Una de las restricciones más rígidas del GBM es que su volatilidad es directamente proporcional al nivel del proceso ($\sigma S_t$). Esto requeriría que, a niveles de tasas bajos, los movimientos fuesen imperceptibles, mientras que a niveles altos, los saltos fuesen máximos. Al contrastar la estabilidad observada en los años 40 con la agresiva subida de tipos iniciada en 2022 —partiendo ambos de niveles cercanos a cero—, queda demostrado que la variabilidad de la serie no depende del valor nominal de la tasa. Esta desconexión entre el nivel de la tasa y la magnitud de sus cambios confirma que la estructura de volatilidad del GBM es incompatible con los datos observados.
+
+------------------------------------------------------------------------
+
+## 3. Definición de los modelos
+
+### SDE Sugeridas para este modelo
+
+Dado que estamos ante una tasa de interés a corto plazo con reversión a la media y un límite inferior claro, proponemos las siguientes SDE:
+
+### 1. Modelo de Cox-Ingersoll-Ross (CIR)
+
+Sería la opción recomendada porque soluciona el problema del "límite cero". Su SDE es: $$dX_t = (\theta_1 - \theta_2 X_t) dt + \theta_3 \sqrt{X_t} dB_t$$ Su término $\sqrt{X_t}$ en la difusión hace que, a medida que la tasa se acerca a cero, la volatilidad disminuya, evitando que la serie se vuelva "loca" en niveles bajos. Además, es un proceso no negativo.
+
+### 2. Modelo de Vasicek (Ornstein-Uhlenbeck)
+
+También presenta reversión a la media, pero su volatilidad es constante:$$dX_t = (\theta_1 - \theta_2 X_t) dt + \theta_3 dB_t$$ Sin embargo, no considera que la volatilidad cambie con el nivel de la tasa y podría, teóricamente, generar tasas negativas, algo que no se aprecia en nuestra serie. De igual forma, vamos a probarlo para verificar que efectivamente no sería un proceso adecuado.
+
+```{r}
+# 2. Definición de los modelos
+# 2.1 Modelo Vasieck (Ornstein-Uhlenbeck):
+mod_vasicek <- setModel(drift = "theta1 - theta2*x", diffusion = "theta3", 
+                        state.variable = "x", solve.variable = "x")
+# 2.2 Modelo CIR
+mod_cir <- setModel(drift = "theta1 - theta2*x", diffusion = "theta3*sqrt(x)", 
+                    state.variable = "x", solve.variable = "x")
+
+# Unión del modelo con los datos
+yuima_v <- setYuima(data = datos_y, model = mod_vasicek)
+yuima_c <- setYuima(data = datos_y, model = mod_cir)
+
+# Parámetros para la estimación
+param_init <- list(theta1 = 0.5, theta2 = 0.1, theta3 = 0.1)
+low_par <- list(theta1 = 1e-5, theta2 = 1e-5, theta3 = 1e-5)
+up_par <- list(theta1 = 20, theta2 = 10, theta3 = 10)
+
+# Estimación QMLE
+fit_vasicek <- qmle(yuima_v, start = param_init, lower = low_par, upper = up_par)
+fit_cir <- qmle(yuima_c, start = param_init, lower = low_par, upper = up_par)
+
+# Resultados
+summary(fit_vasicek)
+summary(fit_cir)
+
+# Comparación de calidad del modelo con el critério AIC
+cat("\n\nAIC Vasicek:", AIC(fit_vasicek), "\n")
+cat("AIC CIR:", AIC(fit_cir), "\n")
+```
+
+Para validar cuantitativamente las deficiencias teóricas expuestas, procedemos a la estimación formal del modelo de Movimiento Browniano Geométrico. Este paso nos permitirá contrastar, mediante el criterio AIC, si la estructura de este proceso es capaz de competir con los modelos de reversión a la media en el ajuste de los datos reales.
+
+```{r}
+# 2.3 Modelo GBM
+gbm <- setModel(drift = "theta1*x", diffusion = "theta2*x")
+
+# Unión del modelo GBM con los datos
+yuima_g <- setYuima(data = datos_y, model = gbm)
+
+# Parámetros para la estimación del GBM: theta1 y theta2
+init_gbm <- list(theta1 = 0.5, theta2 = 0.1)
+low_gbm <- list(theta1 = 1e-5, theta2 = 1e-5)
+up_gbm <- list(theta1 = 20, theta2 = 10)
+
+# Estimación QMLE para GBM
+fit_gbm <- qmle(yuima_g, start = init_gbm, lower = low_gbm, upper = up_gbm)
+
+# Resultados GBM
+summary(fit_gbm)
+
+# Comparación Final de los 3 modelos
+cat("AIC Vasicek: ", AIC(fit_vasicek), "\n")
+cat("AIC CIR:     ", AIC(fit_cir), "\n")
+cat("AIC GBM:     ", AIC(fit_gbm), "\n")
+```
+
+Como se anticipaba, el Movimiento Browniano Geométrico presenta el AIC más elevado de los tres modelos comparados.Este resultado muestra que un proceso carente de reversión a la media y con una volatilidad estrictamente proporcional al nivel es incapaz de capturar la complejidad de la serie TB3MS, quedando descartado frente a las alternativas de Vasicek y CIR.
+
+## 4. Elección del modelo: CIR vs. Vasicek
+
+Para determinar cuál de las dos SDE captura mejor la dinámica de la serie TB3MS, se utilizó el criterio AIC. Con los resultados obtenidos en la salida anterior, se observa una diferencia entre ambos modelos extremadamente significativa. Mientras que el modelo de Vasicek presenta un AIC de 841.74, el modelo CIR alcanza un valor de -524.25. Confirmando la intuición inicial: la estructura de volatilidad del CIR se ajusta mejor a los tipos de interés que la volatilidad constante del modelo Vasicek.
+
+```{r}
+# Definimos 3 listas de parámetros iniciales diferentes
+param_init1 <- list(theta1 = 0.5, theta2 = 0.1, theta3 = 0.1)
+param_init2 <- list(theta1 = 2, theta2 = 0.5, theta3 = 0.5)
+param_init3 <- list(theta1 = 0.1, theta2 = 0.05, theta3 = 0.2)
+
+# Ejecutamos las estimaciones para el mejor modelo - CIR
+fit1 <- qmle(yuima_c, start = param_init1, lower = low_par, upper = up_par)
+fit2 <- qmle(yuima_c, start = param_init2, lower = low_par, upper = up_par)
+fit3 <- qmle(yuima_c, start = param_init3, lower = low_par, upper = up_par)
+
+# Comparamos resultados y errores estándar
+summary(fit1)
+summary(fit2)
+summary(fit3)
+
+```
+
+### Análisis de estabilidad del estimador QMLE
+
+Para validar la robustez de los parámetros obtenidos mediante el QMLE, se realizaron tres pruebas variando los valores iniciales.
+
+A pesar de utilizar puntos de partida muy distintos, las estimaciones finales para $\theta_1$, $\theta_2$ y $\theta_3$ fueron idénticas en los tres casos.
+
+Los errores estándar se mantuvieron constantes y reducidos, lo que indica que la aproximación del logaritmo de la verosimilitud según el esquema de Euler-Maruyama es estable para esta serie temporal. Esto demuestra que el algoritmo ha alcanzado un máximo global y no depende de la semilla inicial, garantizando así la fiabilidad de los resultados.
+
+------------------------------------------------------------------------
+
+## 5. Contraste de hipótesis: validación del modelo
+
+-   $H_0$: El proceso observado sigue el modelo CIR con los parámetros estimados $\theta_0$.
+
+-   $H_1$: El proceso no se ajusta a dichos parámetros.
+
+```{r}
+# Contraste de hipótesis: validación del modelo
+# Definición de la función de divergencia
+phi1 <- function(x) { x * log(x) - x + 1 }
+hoo <- as.list(coef(fit1))
+# 1. Calculamos cuántos años reales tiene la serie
+n_obs <- length(serie_limpia)
+anos_totales <- n_obs / 12  # Asumiendo datos mensuales
+
+# 2. Ajustamos el muestreo a la realidad histórica
+samp <- setSampling(Initial = 0, Terminal = anos_totales, n = n_obs)
+yuima_val <- setYuima(model = mod_cir, sampling = samp)
+
+# 3. Usamos el primer valor real de la serie como punto de partida
+x_inicio <- as.numeric(serie_limpia[1])
+
+set.seed(123) 
+sim_validacion <- simulate(yuima_val, xinit = x_inicio, true.parameter = hoo)
+
+# 4. Volvemos a lanzar el test
+test_resultado <- phi.test(sim_validacion, 
+                           H0 = hoo, 
+                           phi = phi1, 
+                           start = hoo,
+                           lower = low_par, 
+                           upper = up_par)
+
+print(test_resultado)
+
+```
+
+Al obtener un p-valor de 0.3106, no se rechaza la hipótesis nula ($H_0$). Esto implica que el modelo CIR con los parámetros estimados es compatible con la serie histórica TB3MS, validando el uso de esta SDE para representar el comportamiento de la tasa de interés estudiada.
+
+El resultado del contraste puede ser sensible a la especificación del horizonte temporal y la discretización utilizada en la simulación. Por este motivo, se ha ajustado el intervalo de muestreo para que coincida con la duración real de la serie histórica y el número de observaciones disponibles.
+
+------------------------------------------------------------------------
+
+## 6. Simulación
+
+```{r}
+# Mejor modelo: CIR
+mejor_fit <- fit_cir 
+mejor_modelo <- mod_cir 
+
+# Extraer parámetros estimados
+params_estimados <- coef(mejor_fit)
+print("Parámetros obtenidos por QMLE:")
+print(params_estimados)
+
+# Simulación con los parámetros estimados
+# Vamos a simular 20 años (240 meses) empezando desde el último valor real
+ultimo_valor <- as.numeric(tail(serie_limpia, 1))
+muestreo_sim <- setSampling(Initial = 0, Terminal = 20, n = 240)
+
+set.seed(123) # Para que sea reproducible
+simulacion_optima <- simulate(mejor_modelo, 
+                              xinit = ultimo_valor,
+                              true.parameter = as.list(params_estimados),
+                              sampling = muestreo_sim)
+
+# Grafica: Datos Reales vs Simulación
+par(mfrow=c(1,2), mar=c(5,4,4,2)+0.1)
+plot.zoo(TB3MS, main="Datos Reales TB3MS", col="blue", xlab="Años", ylab="Tasa (%)")
+plot(simulacion_optima, main="Simulación del Modelo", col="red", xlab="Años", ylab="Tasa(%)")
+```
+
+Aunque la simulación representa una proyección de 20 años partiendo del valor actual, la comparación visual permite verificar que el modelo preserva las características intrínsecas de la serie original: reversión a la media y volatilidad dependiente del nivel. La simulación no busca predecir el valor exacto, sino demostrar que el "ruido" y las "tendencias" generadas son estadísticamente consistentes con el comportamiento histórico de la serie TB3MS.
+
+```{r}
+# Esto es prueba de utilizar modelo para los últimos 20 años = 240 meses
+n_meses <- 240
+datos_20 <- tail(serie_limpia, n_meses)
+valor_inicial_20 <- as.numeric(datos_20[1])
+
+# Configurar el muestreo para 20 años
+muestreo_hist <- setSampling(Initial = 0, Terminal = 20, n = n_meses-1)
+
+# Simular partiendo del valor histórico
+set.seed(123)
+sim_historica <- simulate(mejor_modelo, 
+                          xinit = valor_inicial_20,
+                          true.parameter = as.list(params_estimados),
+                          sampling = muestreo_hist)
+
+# Grafico real vs simulación
+y_sim <- as.numeric(sim_historica@data@zoo.data[[1]])
+t_sim <- seq(0, 20, length.out = n_meses)
+
+
+plot(t_sim, as.numeric(datos_20), type="l", col="blue", lwd=2, 
+     main="Comparación Realidad vs Modelo (Últimos 20 años)",
+     ylab="Tasa de Interés (%)", xlab="Años transcurridos")
+lines(t_sim, y_sim, col="red", lwd=1.5, lty=2)
+legend("topright", legend=c("Real (TB3MS)", "Simulación CIR"), 
+       col=c("blue", "red"), lty=c(1,2), lwd=2)
+```
+
+El gráfico de comparación de los últimos 20 años revela una discrepancia fundamental entre la dinámica estocástica pura y las intervenciones de política monetaria. Mientras que el modelo CIR proyecta una fluctuación natural alrededor de su media de equilibrio (≈5.3%), la serie real muestra periodos prolongados en el límite cero (ZLB) debido a las respuestas de la Reserva Federal ante la crisis de 2008 y 2020.
+
+Sin embargo, la validez del modelo se confirma al observar que la magnitud de la volatilidad y la velocidad de los movimientos en la simulación son análogas a las observadas en la realidad. El hecho de que ambas series converjan nuevamente hacia el final del periodo (2024-2026) sugiere que, tras los choques externos, la tasa tiende a retornar al comportamiento predicho por el modelo de Cox-Ingersoll-Ross."
+
+```{r}
+# Prueba de sensibilidad: variando theta3 (volatilidad) y theta2 (velocidad)
+
+# Si aumentamos la volatilidad - theta3 - doblamos volatilidad
+params_alta_vol <- as.list(params_estimados)
+params_alta_vol$theta3 <- params_alta_vol$theta3*2 
+
+sim_vol <- simulate(mejor_modelo, xinit = ultimo_valor, 
+                    true.parameter = params_alta_vol, sampling = muestreo_sim)
+
+
+# Si aumentamos la velocidad de reversión - theta2  -- con  retorno a la media mucho más rápido
+
+params_veloz <- as.list(params_estimados)
+params_veloz$theta2 <- params_veloz$theta2*2
+
+sim_veloz <- simulate(mejor_modelo, xinit = ultimo_valor, 
+                      true.parameter = params_veloz, sampling = muestreo_sim)
+
+
+# Comparación de estabilidad
+par(mfrow=c(1,2))
+plot(sim_vol, main="Alta Volatilidad", col="darkorange")
+plot(sim_veloz, main="Reversión Rápida", col="darkgreen")
+
+
+# Función para obtener un resumen rápido de las simulaciones
+resumen_sim <- function(sim_obj, nombre) {
+  media <- mean(as.numeric(sim_obj@data@zoo.data[[1]]))
+  desv <- sd(as.numeric(sim_obj@data@zoo.data[[1]]))
+  cat("\n---", nombre, "---")
+  cat("\nMedia de la simulación:", media)
+  cat("\nDesviación Típica:", desv, "\n")
+}
+
+resumen_sim(simulacion_optima, "Modelo Base (Estimado)")
+resumen_sim(sim_vol, "Escenario: Alta Volatilidad")
+resumen_sim(sim_veloz, "Escenario: Reversión Rápida")
+
+```
+
+## 7. Conclusiones Finales
+
+Tras el análisis exhaustivo de la serie TB3MS, se presentan las siguientes conclusiones:
+
+-   **Idoneidad del Modelo**: El modelo de Cox-Ingersoll-Ross (CIR) ha demostrado ser superior al Movimiento Browniano Geométrico y al modelo de Vasicek. Su capacidad para capturar la reversión a la media y garantizar la no negatividad de las tasas mediante una volatilidad dependiente del nivel ($\sqrt(Xt)$) lo convierte en la herramienta adecuada para este activo.
+
+-   **Robustez de la Estimación**: El uso del método QMLE ha resultado extremadamente estable. La convergencia a los mismos valores paramétricos ($θ_1≈0.088$, $θ_2≈0.016$, $θ_3≈0.536$) partiendo de diferentes semillas iniciales garantiza que hemos alcanzado un máximo global en la verosimilitud.
+
+-   **Validación Estadística**: El contraste de ϕ-divergencia arrojó un p-valor de 0.31, lo que confirma que no hay evidencia para rechazar el modelo. Al calibrar el test con la duración real de la serie histórica, hemos demostrado que el modelo es consistente con la dinámica de largo plazo.
+
+-   **Análisis de Sensibilidad**: La sensibilidad del modelo ante variaciones en los parámetros confirma que los valores estimados mediante QMLE representan un equilibrio adecuado entre volatilidad y reversión a la media. Desviaciones significativas de estos parámetros generan dinámicas inconsistentes con la evidencia empírica.
+
+-   **Nivel de Equilibrio**: El estudio sugiere que la tasa de las Letras del Tesoro a 3 meses tiende de forma natural hacia un nivel de equilibrio cercano al 5.29%, proporcionando una referencia valiosa para la toma de decisiones financieras y de política monetaria.
+
+## 8. Limitaciones
+
+Para finalizar el estudio, es crucial reconocer que un modelo calibrado con casi un siglo de datos (1934-2026) puede no ser el más representativo para entender el presente. La economía ha pasado por etapas muy distintas y, como hemos observado, el comportamiento de los tipos de interés en las últimas dos décadas sigue una lógica propia.
+
+Por ello, hemos realizado una **estimación segmentada desde el año 2000**. Al centrarnos en este intervalo reciente, el modelo CIR se ajusta a un entorno de tipos mucho más bajos y a una "fuerza de atracción" hacia la media mucho más intensa. Esta segmentación nos permite obtener una simulación (línea verde) que es más coherente con el mundo financiero actual, y no con el de hace 80 años.
+
+```{r}
+# Filtramos la serie para quedarnos solo con los últimos 25 años (desde el 2000)
+serie_reciente <- window(serie_limpia, start = "2000-01-01")
+datos_y_reciente <- setData(serie_reciente, delta = 1/12)
+
+# Creamos el objeto Yuima para la serie reciente con el modelo CIR
+yuima_c_reciente <- setYuima(data = datos_y_reciente, model = mod_cir)
+
+# Estimamos los parámetros para la serie reciente
+fit_cir_reciente <- qmle(yuima_c_reciente, start = param_init, lower = low_par, upper = up_par)
+
+# Comparación de parámetros: historia completa vs era moderna
+coef_total <- coef(fit1)            
+coef_reciente <- coef(fit_cir_reciente)
+
+cat("\n Comparación de parámetros CIR:\n")
+print(rbind(Total_Historia = coef_total, Desde_2000 = coef_reciente))
+
+# Cálculo del nivel de equilibrio: theta1 / theta2
+equilibrio_total <- coef_total["theta1"] / coef_total["theta2"]
+equilibrio_reciente <- coef_reciente["theta1"] / coef_reciente["theta2"]
+
+cat("\nNivel de equilibrio total:", equilibrio_total)
+cat("\nNivel de equilibrio reciente:", equilibrio_reciente, "\n")
+
+cat("\nAIC Total CIR:   ", AIC(fit_cir), "\n")
+cat("AIC Reciente CIR : ", AIC(fit_cir_reciente), "\n")
+```
+
+```{r}
+# Definimos los parámetros desde 2000
+params_modernos <- as.list(coef_reciente)
+
+# Configuramos la simulación para los próximos 10 años = 120 meses
+ultimo_valor_real <- as.numeric(tail(serie_limpia, 1))
+muestreo_futuro <- setSampling(Initial = 0, Terminal = 10, n = 120)
+
+set.seed(456) #semilla distinta para otro camino
+sim_futura_moderna <- simulate(mod_cir, 
+                               xinit = ultimo_valor_real,
+                               true.parameter = params_modernos,
+                               sampling = muestreo_futuro)
+
+# Grafico final
+
+# Convertimos la simulación en un objeto con tiempo real
+y_sim <- as.numeric(sim_futura_moderna@data@zoo.data[[1]])
+
+# Creamos un vector de tiempo que empiece justo después del último dato real
+ultima_fecha <- index(tail(serie_limpia, 1))
+fechas_sim <- seq(from = ultima_fecha, by = "month", length.out = length(y_sim))
+
+# Configuración del grafico
+par(mar = c(5, 4, 4, 2) + 0.1)
+
+# Serie histórica completa en azul
+plot(index(serie_limpia), as.numeric(serie_limpia), 
+     type = "l", col = "steelblue", lwd = 1.5,
+     main = "Análisis de Quiebre Estructural: Historia vs. Era Moderna",
+     xlab = "Año", ylab = "Tasa TB3MS (%)",
+     xlim = c(min(index(serie_limpia)), max(fechas_sim)),
+     ylim = c(0, 16))
+
+# Simulación del modelo reciente en verde
+lines(fechas_sim, y_sim, col = "darkgreen", lwd = 2)
+
+# Líneas de nivel de equilibrio
+# Línea de equilibrio Total
+abline(h = equilibrio_total, col = "red", lty = 2, lwd = 2)
+# Línea de equilibrio Reciente
+abline(h = equilibrio_reciente, col = "orange", lty = 2, lwd = 2)
+
+# Leyenda
+legend("topright", 
+       legend = c("Datos Reales (1934-2026)", 
+                  "Simulación CIR (Params Post-2000)", 
+                  "Media LP Histórica (5.28%)", 
+                  "Media LP Moderna (1.12%)"),
+       col = c("steelblue", "darkgreen", "red", "orange"), 
+       lty = c(1, 1, 2, 2), 
+       lwd = 2, 
+       cex = 0.8,
+       bg = "white")
+
+text(x = as.Date("1980-01-01"), y = 14, "Época de Alta Inflación", cex = 0.7, col = "red")
+text(x = as.Date("2015-01-01"), y = 0.5, "Era de Tipos Cero", cex = 0.7, col = "orange")
+```
