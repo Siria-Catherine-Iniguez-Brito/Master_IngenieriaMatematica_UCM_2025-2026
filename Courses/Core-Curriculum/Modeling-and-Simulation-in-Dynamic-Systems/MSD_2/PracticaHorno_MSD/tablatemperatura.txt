@@ -1,0 +1,6 @@
+% Model:              horno.mph
+% Version:            COMSOL 5.2.1.262
+% Date:               Feb 25 2026, 20:27
+% Table:              Tabla 1 - Superficie promedio 1 (u)
+% Variable dependiente u (K)
+548.1500000001171
